@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moon Hotels | 3D Metaverse on NEAR Protocol</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+        }
+        #scene-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .ui-overlay {
+            position: fixed;
+            z-index: 100;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+        }
+        #top-menu {
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #plot-info {
+            bottom: 10px;
+            left: 10px;
+            max-width: 300px;
+        }
+        #controls {
+            bottom: 10px;
+            right: 10px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .powered-by {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #4CAF50;
+            text-shadow: 0 0 5px #00ff00;
+            display: flex;
+            align-items: center;
+        }
+        .powered-by img {
+            height: 30px;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container"></div>
+    
+    <div id="top-menu" class="ui-overlay">
+        <div>Moon Hotels</div>
+        <div>
+            <button id="marketplace">Marketplace</button>
+            <button id="my-plots">My Plots</button>
+            <button id="build">Build</button>
+            <button id="events">Events</button>
+        </div>
+        <div>Connected to NEAR</div>
+    </div>
+    
+    <div id="plot-info" class="ui-overlay">
+        <h3>Plot Information</h3>
+        <p>Coordinates: <span id="coords"></span></p>
+        <p>Owner: <span id="owner"></span></p>
+        <p>Price: <span id="price"></span> NEAR</p>
+        <button id="buy">Buy Plot</button>
+        <button id="customize">Customize</button>
+    </div>
+    
+    <div id="controls" class="ui-overlay">
+        <button id="rotate-left">⬅️</button>
+        <button id="rotate-right">➡️</button>
+        <button id="zoom-in">🔍+</button>
+        <button id="zoom-out">🔍-</button>
+    </div>
+
+    <div class="powered-by">
+        Powered by 
+        <img src="/api/placeholder/30/30" alt="ZEN logo">
+        &
+        <img src="/api/placeholder/30/30" alt="NEARVIDIA logo">
+    </div>
+
+    <script>
+        // Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('scene-container').appendChild(renderer.domElement);
+
+        // Enhanced moon surface
+        const moonGeometry = new THREE.SphereGeometry(5, 512, 512);
+        const moonTexture = new THREE.TextureLoader().load('/api/placeholder/2048/1024');
+        const moonNormalMap = new THREE.TextureLoader().load('/api/placeholder/2048/1024');
+        const moonHeightMap = new THREE.TextureLoader().load('/api/placeholder/2048/1024');
+        const moonMaterial = new THREE.MeshStandardMaterial({ 
+            map: moonTexture,
+            normalMap: moonNormalMap,
+            displacementMap: moonHeightMap,
+            displacementScale: 0.06,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+        scene.add(moon);
+
+        // Atmospheric glow
+        const glowGeometry = new THREE.SphereGeometry(5.2, 32, 32);
+        const glowMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                c: { type: "f", value: 0.1 },
+                p: { type: "f", value: 4.5 },
+                glowColor: { type: "c", value: new THREE.Color(0x4CAF50) },
+                viewVector: { type: "v3", value: camera.position }
+            },
+            vertexShader: `
+                uniform vec3 viewVector;
+                varying float intensity;
+                void main() {
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                    vec3 actual_normal = vec3(modelMatrix * vec4(normal, 0.0));
+                    intensity = pow( dot(normalize(viewVector), actual_normal), 6.0 );
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor;
+                varying float intensity;
+                void main() {
+                    vec3 glow = glowColor * intensity;
+                    gl_FragColor = vec4( glow, 1.0 );
+                }
+            `,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending,
+            transparent: true
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        scene.add(glowMesh);
+
+        // Enhanced plots
+        const plotsGroup = new THREE.Group();
+        for (let i = 0; i < 10000; i++) {
+            const plotGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+            const plotMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x4CAF50, 
+                emissive: 0x00ff00,
+                emissiveIntensity: 0.5,
+                shininess: 100 
+            });
+            const plot = new THREE.Mesh(plotGeometry, plotMaterial);
+            const phi = Math.acos(-1 + (2 * i) / 10000);
+            const theta = Math.sqrt(10000 * Math.PI) * phi;
+            plot.position.setFromSpherical(new THREE.Spherical(
+                5.03,
+                phi,
+                theta
+            ));
+            plot.lookAt(0, 0, 0);
+            plotsGroup.add(plot);
+        }
+        scene.add(plotsGroup);
+
+        // Starfield
+        const starGeometry = new THREE.BufferGeometry();
+        const starMaterial = new THREE.PointsMaterial({
+            color: 0xFFFFFF,
+            size: 0.02,
+            transparent: true
+        });
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            starVertices.push(x, y, z);
+        }
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 3, 5);
+        scene.add(directionalLight);
+
+        camera.position.z = 10;
+
+        // Orbit controls
+        let isDragging = false;
+        let previousMousePosition = {
+            x: 0,
+            y: 0
+        };
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            const deltaMove = {
+                x: e.offsetX - previousMousePosition.x,
+                y: e.offsetY - previousMousePosition.y
+            };
+
+            if (isDragging) {
+                const deltaRotationQuaternion = new THREE.Quaternion()
+                    .setFromEuler(new THREE.Euler(
+                        toRadians(deltaMove.y * 1),
+                        toRadians(deltaMove.x * 1),
+                        0,
+                        'XYZ'
+                    ));
+                
+                camera.quaternion.multiplyQuaternions(deltaRotationQuaternion, camera.quaternion);
+            }
+
+            previousMousePosition = {
+                x: e.offsetX,
+                y: e.offsetY
+            };
+        });
+
+        renderer.domElement.addEventListener('mouseup', (e) => {
+            isDragging = false;
+        });
+
+        function toRadians(angle) {
+            return angle * (Math.PI / 180);
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            moon.rotation.y += 0.0001;
+            plotsGroup.rotation.y += 0.0001;
+            stars.rotation.y += 0.0001;
+            glowMaterial.uniforms.viewVector.value = new THREE.Vector3().subVectors(camera.position, glowMesh.position);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // UI Interactions
+        document.getElementById('rotate-left').addEventListener('click', () => {
+            camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.1);
+        });
+
+        document.getElementById('rotate-right').addEventListener('click', () => {
+            camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.1);
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            camera.position.multiplyScalar(0.9);
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            camera.position.multiplyScalar(1.1);
+        });
+
+        document.getElementById('buy').addEventListener('click', () => {
+            alert('Connecting to NEAR wallet for purchase...');
+        });
+
+        document.getElementById('customize').addEventListener('click', () => {
+            alert('Opening customization interface...');
+        });
+
+        // Plot selection logic
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        renderer.domElement.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(plotsGroup.children);
+
+            if (intersects.length > 0) {
+                const selectedPlot = intersects[0].object;
+                const coords = selectedPlot.position.toArray().map(coord => coord.toFixed(2)).join(', ');
+                document.getElementById('coords').textContent = coords;
+                document.getElementById('owner').textContent = Math.random() > 0.5 ? 'Available' : 'User' + Math.round(Math.random()*1000);
+                document.getElementById('price').textContent = (Math.random() * 1000 + 100).toFixed(2);
+
+                selectedPlot.material.emissive.setHex(0xff0000);
+                setTimeout(() => {
+                    selectedPlot.material.emissive.setHex(0x00ff00);
+                }, 1000);
+            }
+        });
+
+        // Responsive design
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
